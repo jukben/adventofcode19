@@ -2,7 +2,7 @@ type Path = Array<string>;
 type World = Record<string, Record<string, number>>;
 
 const getDirection = (step: string) => {
-  const [direction, ...length] = step;
+  const [direction, ...length] = step.split("");
 
   return ({ direction, length: +length.join("") } as unknown) as {
     direction: "R" | "L" | "D" | "U";
@@ -18,7 +18,7 @@ const drawLine = ({
   onIntersection?: (x: number, y: number) => void;
 }) => (path: Path, lineId: number) => {
   const origin = [0, 0];
-  let intersectionSteps = {};
+  let intersectionSteps: Record<string, number> = {};
   let steps = 0;
 
   const drawPixel = (x: number, y: number) => {
@@ -65,7 +65,7 @@ const drawLine = ({
 
 const getDistance = (a: Path, b: Path) => {
   const world = {};
-  const intersection = [];
+  const intersection: Array<number> = [];
 
   const onIntersection = (x: number, y: number) =>
     intersection.push(Math.abs(x) + Math.abs(y));
@@ -76,13 +76,13 @@ const getDistance = (a: Path, b: Path) => {
 };
 
 const getSteps = (a: Path, b: Path) => {
-  const world1 = {};
-  const [, stepsA] = [b, a].map(drawLine({ world: world1 }));
+  let world = {};
+  const [, stepsA] = [b, a].map(drawLine({ world }));
 
-  const world2 = {};
-  const [, stepsB] = [a, b].map(drawLine({ world: world2 }));
+  world = {};
+  const [, stepsB] = [a, b].map(drawLine({ world }));
 
-  const steps = [];
+  const steps: Array<number> = [];
   for (const cords of Object.keys(stepsA)) {
     steps.push(stepsA[cords] + stepsB[cords]);
   }

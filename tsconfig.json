@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "module": "es6",
-    "strict": true
+    "lib": ["es2017"],
+    "strict": true,
+    "noEmit": true
   },
-  "files": ["src"]
+  "include": ["src"]
 }

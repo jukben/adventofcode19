@@ -61,7 +61,7 @@ const run = (program: Program) => {
   return program_;
 };
 
-const findNounAndVerb = (program: Program): [number, number] => {
+const findNounAndVerb = (program: Program): [number, number] | undefined => {
   for (let noun = 0; noun <= 99; noun++) {
     for (let verb = 0; verb <= 99; verb++) {
       let _program = [...program];

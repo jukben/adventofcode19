@@ -38,7 +38,7 @@ const testPasswordBetter = (password: number) => {
     last = curr;
   }
 
-  let adjacent = {};
+  let adjacent: Record<number, number> = {};
   for (let i = 0; i < stringifiedPassword.length; i++) {
     const curr = +stringifiedPassword[i];
 

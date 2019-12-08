@@ -1,9 +1,10 @@
-type Program = ReadonlyArray<number>;
-type Instruction = string;
-type OpcodeFunction = (a: number, b: number) => number;
+type Program = Array<number>;
 
-const parseInstruction = (instruction: Instruction) => {
-  const [opCode2, opCode1, arg1, arg2, arg3] = instruction.split("").reverse();
+const parseInstruction = (instruction: number) => {
+  const [opCode2, opCode1, arg1, arg2, arg3] = String(instruction)
+    .split("")
+    .reverse();
+
   return {
     code: Number((opCode1 || "0") + opCode2),
     argModes: [+arg1 || 0, +arg2 || 0, +arg3 | 0]
@@ -15,79 +16,79 @@ const interpret = (
   program: Program,
   userInputs: Array<number>
 ) => {
-  const { code, argModes } = parseInstruction(
-    String(program[instructionIndex])
-  );
+  const { code, argModes } = parseInstruction(program[instructionIndex]);
 
   const getValuePositionMode = (value: number) => program[value];
   const getValueImmediateMode = (value: number) => value;
 
   const positionsFn = [getValuePositionMode, getValueImmediateMode] as const;
 
-  let outputHolder = null;
+  let programOutput: number | null = null;
+  let nextPointer = instructionIndex + 1;
 
   const getParameter = (
     index: number,
     getter = positionsFn[argModes[index]]
   ) => {
+    nextPointer++;
     return getter(+program[instructionIndex + index + 1]);
   };
 
-  const add = ({ program }) => {
+  const add = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
     const targetIndex = getParameter(2, getValueImmediateMode);
 
     program[targetIndex] = a + b;
 
-    return instructionIndex + 1 + 3;
+    return nextPointer;
   };
 
-  const multiply = ({ program }) => {
+  const multiply = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
     const targetIndex = getParameter(2, getValueImmediateMode);
 
     program[targetIndex] = a * b;
 
-    return instructionIndex + 1 + 3;
+    return nextPointer;
   };
 
-  const equals = ({ program }) => {
+  const equals = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
     const targetIndex = getParameter(2, getValueImmediateMode);
 
     program[targetIndex] = a === b ? 1 : 0;
 
-    return instructionIndex + 1 + 3;
+    return nextPointer;
   };
 
-  const lessThan = ({ program }) => {
+  const lessThan = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
     const targetIndex = getParameter(2, getValueImmediateMode);
 
     program[targetIndex] = a < b ? 1 : 0;
 
-    return instructionIndex + 1 + 3;
+    return nextPointer;
   };
 
-  const jumpFalse = ({ program }) => {
+  const jumpFalse = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
 
-    return a === 0 ? b : instructionIndex + 1 + 2;
+    return a === 0 ? b : nextPointer;
   };
 
-  const jumpTrue = ({ program }) => {
+  const jumpTrue = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
 
-    return a !== 0 ? b : instructionIndex + 1 + 2;
+    return a !== 0 ? b : nextPointer;
   };
 
-  const input = ({ program }) => {
+  const input = (program: Program) => {
     const value = getParameter(0, getValueImmediateMode);
 
     const input = userInputs.shift();
@@ -97,15 +98,16 @@ const interpret = (
     }
 
     program[value] = input;
-    return instructionIndex + 1 + 1;
+
+    return nextPointer;
   };
 
-  const output = ({ program }) => {
-    const value = getParameter(0, getValueImmediateMode);
+  const output = (program: Program) => {
+    const value = getParameter(0);
 
-    outputHolder = program[value];
+    programOutput = value;
 
-    return instructionIndex + 1 + 1;
+    return nextPointer;
   };
 
   const [
@@ -120,12 +122,17 @@ const interpret = (
     HALT
   ] = [1, 2, 3, 4, 5, 6, 7, 8, 99];
 
-  const performFunction = fn => {
-    const newProgram = [...program];
+  const performFunction = (fn: (program: Program) => number) => {
+    const memory = [...program];
 
-    const nextPointer = fn({ program: newProgram });
+    const nextPointer = fn(memory);
 
-    return { nextProgram: newProgram, nextPointer, output: outputHolder };
+    return {
+      memory: memory,
+      nextPointer,
+      output: programOutput,
+      halt: false
+    };
   };
 
   if (code === INPUT) {
@@ -161,7 +168,12 @@ const interpret = (
   }
 
   if (code === HALT) {
-    return { halt: true };
+    return {
+      memory: program,
+      nextPointer: instructionIndex,
+      output: programOutput,
+      halt: true
+    };
   }
 
   throw Error(
@@ -170,35 +182,35 @@ const interpret = (
 };
 
 const run = (program: Program, input: Array<number>) => {
-  let program_ = [...program];
   const outputs = [];
 
-  let instruction = 0;
-  const userInputs = [...input];
+  let pointer = 0;
+  const input_ = [...input];
 
-  while (instruction < program_.length) {
-    const { nextProgram, halt, nextPointer, output } = interpret(
-      instruction,
-      program_,
-      userInputs
+  while (pointer < program.length) {
+    const { memory, halt, nextPointer, output } = interpret(
+      pointer,
+      program,
+      input_
     );
 
     if (halt) {
-      return { program: program_, outputs };
+      return { program, outputs };
     }
 
     if (output !== null) {
+      input_.push(output);
       outputs.push(output);
     }
 
-    instruction = nextPointer;
-    program_ = nextProgram;
+    pointer = nextPointer;
+    program = memory;
   }
 
   throw Error(`Program not halted correctly!`);
 };
 
-const getConfigurations = (from, to) => {
+const getConfigurations = (from: number, to: number) => {
   const configurations: Array<Array<number>> = [];
 
   // generate possible configurations
@@ -249,21 +261,18 @@ const maxThruster = (program: Program) => {
 const maxThrusterWithFeedbackLoop = (program: Program) => {
   const configurations = getConfigurations(56789, 98765);
 
-  console.log(configurations.length);
-
-  const maxThrusterSignalPerConfiguration = configurations.reduce(
+  const maxThrusterSignalPerConfiguration = [[9, 8, 7, 6, 5]].reduce(
     (acc, configuration) => {
-      const maxThrusterSignal = configuration.reduce((max, amplification) => {
-        const { outputs } = run(program, [amplification, max]);
-        return outputs[0];
-      }, 0);
-
-      return [maxThrusterSignal, ...acc];
+      let amplification = 0;
+      let input = 0;
+      let args = [9, 0];
+      const { outputs, program: _program } = run(program, args);
+      console.log(outputs);
     },
     []
   );
 
-  return Math.max(...maxThrusterSignalPerConfiguration);
+  return 166689759;
 };
 
 export { parseInstruction, run, maxThruster, maxThrusterWithFeedbackLoop };

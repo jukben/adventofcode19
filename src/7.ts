@@ -1,5 +1,11 @@
 type Program = Array<number>;
 
+const IntCodeState = {
+  RUNNING: 0,
+  HALT: 1,
+  WAITING: 2
+} as const;
+
 const parseInstruction = (instruction: number) => {
   const [opCode2, opCode1, arg1, arg2, arg3] = String(instruction)
     .split("")
@@ -41,7 +47,7 @@ const interpret = (
 
     program[targetIndex] = a + b;
 
-    return nextPointer;
+    return { nextPointer };
   };
 
   const multiply = (program: Program) => {
@@ -51,7 +57,7 @@ const interpret = (
 
     program[targetIndex] = a * b;
 
-    return nextPointer;
+    return { nextPointer };
   };
 
   const equals = (program: Program) => {
@@ -61,7 +67,7 @@ const interpret = (
 
     program[targetIndex] = a === b ? 1 : 0;
 
-    return nextPointer;
+    return { nextPointer };
   };
 
   const lessThan = (program: Program) => {
@@ -71,21 +77,21 @@ const interpret = (
 
     program[targetIndex] = a < b ? 1 : 0;
 
-    return nextPointer;
+    return { nextPointer };
   };
 
   const jumpFalse = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
 
-    return a === 0 ? b : nextPointer;
+    return { nextPointer: a === 0 ? b : nextPointer };
   };
 
   const jumpTrue = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
 
-    return a !== 0 ? b : nextPointer;
+    return { nextPointer: a !== 0 ? b : nextPointer };
   };
 
   const input = (program: Program) => {
@@ -94,12 +100,12 @@ const interpret = (
     const input = userInputs.shift();
 
     if (input === undefined) {
-      throw new Error(`User input is not defined at ${instructionIndex}`);
+      return { nextPointer: instructionIndex, status: IntCodeState.WAITING };
     }
 
     program[value] = input;
 
-    return nextPointer;
+    return { nextPointer };
   };
 
   const output = (program: Program) => {
@@ -107,7 +113,7 @@ const interpret = (
 
     programOutput = value;
 
-    return nextPointer;
+    return { nextPointer };
   };
 
   const [
@@ -122,16 +128,18 @@ const interpret = (
     HALT
   ] = [1, 2, 3, 4, 5, 6, 7, 8, 99];
 
-  const performFunction = (fn: (program: Program) => number) => {
+  const performFunction = (
+    fn: (program: Program) => { nextPointer: number; status?: number }
+  ) => {
     const memory = [...program];
 
-    const nextPointer = fn(memory);
+    const { nextPointer, status = IntCodeState.RUNNING } = fn(memory);
 
     return {
       memory: memory,
       nextPointer,
       output: programOutput,
-      halt: false
+      status
     };
   };
 
@@ -172,7 +180,7 @@ const interpret = (
       memory: program,
       nextPointer: instructionIndex,
       output: programOutput,
-      halt: true
+      status: IntCodeState.HALT
     };
   }
 
@@ -181,25 +189,23 @@ const interpret = (
   );
 };
 
-const run = (program: Program, input: Array<number>) => {
+const run = (program: Program, userInput: Array<number>, pointer = 0) => {
   const outputs = [];
 
-  let pointer = 0;
-  const input_ = [...input];
+  const input = [...userInput];
 
   while (pointer < program.length) {
-    const { memory, halt, nextPointer, output } = interpret(
+    const { memory, status, nextPointer, output } = interpret(
       pointer,
       program,
-      input_
+      input
     );
 
-    if (halt) {
-      return { program, outputs };
+    if (status === IntCodeState.HALT || status === IntCodeState.WAITING) {
+      return { program, outputs, status, pointer: nextPointer };
     }
 
     if (output !== null) {
-      input_.push(output);
       outputs.push(output);
     }
 
@@ -258,21 +264,45 @@ const maxThruster = (program: Program) => {
   return Math.max(...maxThrusterSignalPerConfiguration);
 };
 
+/**
+ */
 const maxThrusterWithFeedbackLoop = (program: Program) => {
   const configurations = getConfigurations(56789, 98765);
 
-  const maxThrusterSignalPerConfiguration = [[9, 8, 7, 6, 5]].reduce(
-    (acc, configuration) => {
-      let amplification = 0;
-      let input = 0;
-      let args = [9, 0];
-      const { outputs, program: _program } = run(program, args);
-      console.log(outputs);
+  const maxThrusterSignalPerConfiguration = configurations.reduce(
+    (acc, configuration, i) => {
+      let ampIndex = 0;
+      let lastSignal = 0;
+      const ampMemory: Array<{ program: Program; pointer: number }> = [];
+
+      while (true) {
+        const { outputs, program: _program, status, pointer } = run(
+          ampMemory[ampIndex] ? ampMemory[ampIndex].program : program,
+          ampMemory[ampIndex]
+            ? [lastSignal]
+            : [configuration[ampIndex], lastSignal],
+          ampMemory[ampIndex] ? ampMemory[ampIndex].pointer : 0
+        );
+
+        if (status === IntCodeState.HALT && ampIndex === 4) {
+          return [outputs[0], ...acc];
+        }
+
+        if (status === IntCodeState.WAITING) {
+          ampMemory[ampIndex] = {
+            program: _program,
+            pointer
+          };
+        }
+
+        lastSignal = outputs[0];
+        ampIndex = (ampIndex + 1) % 5;
+      }
     },
     []
   );
 
-  return 166689759;
+  return Math.max(...maxThrusterSignalPerConfiguration);
 };
 
 export { parseInstruction, run, maxThruster, maxThrusterWithFeedbackLoop };

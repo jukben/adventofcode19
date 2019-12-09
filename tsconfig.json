@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["dom", "es2017"],
+    "lib": ["ESNext"],
     "strict": true,
     "noEmit": true
   },

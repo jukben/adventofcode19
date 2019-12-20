@@ -45,10 +45,18 @@ const interpret = (
     return +getter(+program[instructionIndex + index + 1]);
   };
 
+  const getAddress = (index: number) => {
+    nextPointer++;
+    return (
+      (argModes[index] === 2 ? relativeAddressBase : 0) +
+      +program[instructionIndex + 1 + index]
+    );
+  };
+
   const add = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
-    const targetIndex = getParameter(2, getValueImmediateMode);
+    const targetIndex = getAddress(2);
 
     program[targetIndex] = BigInt(a + b).toString();
 
@@ -58,7 +66,7 @@ const interpret = (
   const multiply = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
-    const targetIndex = getParameter(2, getValueImmediateMode);
+    const targetIndex = getAddress(2);
 
     program[targetIndex] = BigInt(a * b).toString();
 
@@ -68,7 +76,7 @@ const interpret = (
   const equals = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
-    const targetIndex = getParameter(2, getValueImmediateMode);
+    const targetIndex = getAddress(2);
 
     program[targetIndex] = a === b ? "1" : "0";
 
@@ -78,7 +86,7 @@ const interpret = (
   const lessThan = (program: Program) => {
     const a = getParameter(0);
     const b = getParameter(1);
-    const targetIndex = getParameter(2, getValueImmediateMode);
+    const targetIndex = getAddress(2);
 
     program[targetIndex] = a < b ? "1" : "0";
 
@@ -100,7 +108,7 @@ const interpret = (
   };
 
   const input = (program: Program) => {
-    const value = getParameter(0, getValueImmediateMode);
+    const targetIndex = getAddress(0);
 
     const input = userInputs.shift();
 
@@ -108,7 +116,7 @@ const interpret = (
       return { nextPointer: instructionIndex, status: IntCodeState.WAITING };
     }
 
-    program[value] = input;
+    program[targetIndex] = input;
 
     return { nextPointer };
   };
@@ -233,7 +241,7 @@ const run = (
 
     if (status === IntCodeState.HALT || status === IntCodeState.WAITING) {
       return {
-        program: program_.map(Number),
+        program: program_,
         outputs,
         status,
         pointer: nextPointer
@@ -306,7 +314,7 @@ const maxThrusterWithFeedbackLoop = (program: Array<number | string>) => {
   const configurations = getConfigurations(56789, 98765);
 
   const maxThrusterSignalPerConfiguration = configurations.reduce(
-    (acc, configuration, i) => {
+    (acc, configuration) => {
       let ampIndex = 0;
       let lastSignal = 0;
       const ampMemory: Array<{ program: Program; pointer: number }> = [];
